@@ -1,112 +1,140 @@
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "";
+ /**
+  * API client utilities for the portfolio frontend.
+  * Resolves API base URL from env or heuristics and provides typed calls.
+  */
 
-/**
- * Helper to handle fetch responses and errors consistently.
- * Converts non-2xx to Error and parses JSON when applicable.
- * @param {Response} res
- * @returns {Promise<any>}
- */
-async function handleJson(res) {
-  const contentType = res.headers.get("content-type") || "";
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    const err = new Error(errText || `Request failed with status ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  if (contentType.includes("application/json")) {
-    return res.json();
-  }
-  return res.text();
-}
+ /**
+  * Resolve API base URL.
+  * Priority:
+  * 1) REACT_APP_API_BASE_URL (explicit override)
+  * 2) Dev heuristic: if app runs on port 3000, try same host on port 3001
+  * 3) Same-origin (empty base) - assumes reverse proxy in production
+  */
+ const API_BASE = (() => {
+   const envBase = process.env.REACT_APP_API_BASE_URL;
+   if (envBase && envBase.trim() !== "") return envBase.trim();
+   if (typeof window !== "undefined") {
+     try {
+       const { protocol, hostname, port } = window.location || {};
+       // Common CRA dev: frontend 3000, backend 3001
+       if (port === "3000") {
+         return `${protocol}//${hostname}:3001`;
+       }
+     } catch {
+       // no-op; fall through to same-origin
+     }
+   }
+   // Same-origin (e.g., behind reverse proxy)
+   return "";
+ })();
 
-/**
- * Build absolute URL based on env-configured API base.
- * @param {string} path
- */
-function url(path) {
-  if (!API_BASE) return path;
-  // Ensure single slash between base and path
-  return `${API_BASE.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-}
+ /**
+  * Helper to handle fetch responses and errors consistently.
+  * Converts non-2xx to Error and parses JSON when applicable.
+  * @param {Response} res
+  * @returns {Promise<any>}
+  */
+ async function handleJson(res) {
+   const contentType = res.headers.get("content-type") || "";
+   if (!res.ok) {
+     const errText = await res.text().catch(() => "");
+     const err = new Error(errText || `Request failed with status ${res.status}`);
+     err.status = res.status;
+     throw err;
+   }
+   if (contentType.includes("application/json")) {
+     return res.json();
+   }
+   return res.text();
+ }
 
-// PUBLIC_INTERFACE
-export async function getAbout() {
-  /** Fetch About content: { status, data: About } */
-  const res = await fetch(url("/api/about"), { headers: { Accept: "application/json" } });
-  return handleJson(res);
-}
+ /**
+  * Build absolute URL based on resolved API base.
+  * @param {string} path
+  */
+ function url(path) {
+   if (!API_BASE) return path;
+   // Ensure single slash between base and path
+   return `${API_BASE.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+ }
 
-// PUBLIC_INTERFACE
-export async function getSkills() {
-  /** Fetch skills categories: { status, data: SkillCategory[] } */
-  const res = await fetch(url("/api/skills"), { headers: { Accept: "application/json" } });
-  return handleJson(res);
-}
+ // PUBLIC_INTERFACE
+ export async function getAbout() {
+   /** Fetch About content: { status, data: About } */
+   const res = await fetch(url("/api/about"), { headers: { Accept: "application/json" } });
+   return handleJson(res);
+ }
 
-// PUBLIC_INTERFACE
-export async function getExperience() {
-  /** Fetch experience timeline: { status, data: ExperienceItem[] } */
-  const res = await fetch(url("/api/experience"), { headers: { Accept: "application/json" } });
-  return handleJson(res);
-}
+ // PUBLIC_INTERFACE
+ export async function getSkills() {
+   /** Fetch skills categories: { status, data: SkillCategory[] } */
+   const res = await fetch(url("/api/skills"), { headers: { Accept: "application/json" } });
+   return handleJson(res);
+ }
 
-// PUBLIC_INTERFACE
-export async function getProjects() {
-  /** Fetch featured projects: { status, data: Project[] } */
-  const res = await fetch(url("/api/projects"), { headers: { Accept: "application/json" } });
-  return handleJson(res);
-}
+ // PUBLIC_INTERFACE
+ export async function getExperience() {
+   /** Fetch experience timeline: { status, data: ExperienceItem[] } */
+   const res = await fetch(url("/api/experience"), { headers: { Accept: "application/json" } });
+   return handleJson(res);
+ }
 
-// PUBLIC_INTERFACE
-export async function getContactDetails() {
-  /** Fetch public contact details: { status, data: ContactDetails } */
-  const res = await fetch(url("/api/contact"), { headers: { Accept: "application/json" } });
-  return handleJson(res);
-}
+ // PUBLIC_INTERFACE
+ export async function getProjects() {
+   /** Fetch featured projects: { status, data: Project[] } */
+   const res = await fetch(url("/api/projects"), { headers: { Accept: "application/json" } });
+   return handleJson(res);
+ }
 
-// PUBLIC_INTERFACE
-export async function submitContact(payload) {
-  /** Submit contact message: returns 201 with ContactMessageResponse */
-  const res = await fetch(url("/api/contact"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return handleJson(res);
-}
+ // PUBLIC_INTERFACE
+ export async function getContactDetails() {
+   /** Fetch public contact details: { status, data: ContactDetails } */
+   const res = await fetch(url("/api/contact"), { headers: { Accept: "application/json" } });
+   return handleJson(res);
+ }
 
-// PUBLIC_INTERFACE
-export async function downloadResume() {
-  /**
-   * Download resume blob and return an object URL plus filename.
-   * Caller should revokeObjectURL when done.
-   */
-  const res = await fetch(url("/api/resume"));
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    const err = new Error(errText || `Resume download failed with status ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  const blob = await res.blob();
-  // Try to extract filename from Content-Disposition
-  const cd = res.headers.get("content-disposition") || "";
-  let filename = "resume";
-  const match = cd.match(/filename\*?=(?:UTF-8''|")?([^;"]+)/i);
-  if (match && match[1]) {
-    try {
-      filename = decodeURIComponent(match[1].replace(/["']/g, ""));
-    } catch {
-      filename = match[1].replace(/["']/g, "");
-    }
-  } else {
-    // Best guess for common types
-    const type = blob.type || "";
-    if (type.includes("pdf")) filename = "resume.pdf";
-    else if (type.includes("msword") || type.includes("wordprocessingml")) filename = "resume.docx";
-    else filename = "resume.txt";
-  }
-  const objectUrl = URL.createObjectURL(blob);
-  return { objectUrl, filename };
-}
+ // PUBLIC_INTERFACE
+ export async function submitContact(payload) {
+   /** Submit contact message: returns 201 with ContactMessageResponse */
+   const res = await fetch(url("/api/contact"), {
+     method: "POST",
+     headers: { "Content-Type": "application/json", Accept: "application/json" },
+     body: JSON.stringify(payload),
+   });
+   return handleJson(res);
+ }
+
+ // PUBLIC_INTERFACE
+ export async function downloadResume() {
+   /**
+    * Download resume blob and return an object URL plus filename.
+    * Caller should revokeObjectURL when done.
+    */
+   const res = await fetch(url("/api/resume"));
+   if (!res.ok) {
+     const errText = await res.text().catch(() => "");
+     const err = new Error(errText || `Resume download failed with status ${res.status}`);
+     err.status = res.status;
+     throw err;
+   }
+   const blob = await res.blob();
+   // Try to extract filename from Content-Disposition
+   const cd = res.headers.get("content-disposition") || "";
+   let filename = "resume";
+   const match = cd.match(/filename\*?=(?:UTF-8''|")?([^;"]+)/i);
+   if (match && match[1]) {
+     try {
+       filename = decodeURIComponent(match[1].replace(/["']/g, ""));
+     } catch {
+       filename = match[1].replace(/["']/g, "");
+     }
+   } else {
+     // Best guess for common types
+     const type = blob.type || "";
+     if (type.includes("pdf")) filename = "resume.pdf";
+     else if (type.includes("msword") || type.includes("wordprocessingml")) filename = "resume.docx";
+     else filename = "resume.txt";
+   }
+   const objectUrl = URL.createObjectURL(blob);
+   return { objectUrl, filename };
+ }

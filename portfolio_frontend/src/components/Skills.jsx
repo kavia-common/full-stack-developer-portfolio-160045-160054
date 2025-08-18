@@ -20,18 +20,22 @@ export default function Skills({ id = "skills", className = "" }) {
       {loading && <div className="card">Loading skills…</div>}
       {error && <div className="card" role="alert">Unable to load skills.</div>}
       {!loading && !error && (
-        <div className="grid skills">
-          {skills.map((cat) => (
-            <div key={cat.category} className="card">
-              <div className="skill-title">{cat.category}</div>
-              <div className="chips">
-                {(cat.items || []).map((item) => (
-                  <span className="chip" key={item}>{item}</span>
-                ))}
+        skills.length > 0 ? (
+          <div className="grid skills">
+            {skills.map((cat) => (
+              <div key={cat.category} className="card">
+                <div className="skill-title">{cat.category}</div>
+                <div className="chips">
+                  {(cat.items || []).map((item) => (
+                    <span className="chip" key={item}>{item}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="card" role="status">No skills to display yet.</div>
+        )
       )}
     </Section>
   );
